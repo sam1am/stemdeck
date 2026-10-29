@@ -13,6 +13,7 @@ from app.core.config import (
     JOB_TTL_SECONDS,
     STEM_NAMES,
     TIMEOUT_FFMPEG,
+    WAV_PLAIN_HEADER_ARGS,
     ffmpeg_executable,
 )
 from app.core.models import FINISHED_STATUSES, Job
@@ -155,7 +156,7 @@ def make_original_track(job: Job, job_dir: Path, stems_dir: Path) -> Path | None
         # Single complement stem -- copy as-is so we still produce a
         # canonical mix.wav-shaped output without invoking amix on a
         # 1-input graph (which is a no-op anyway).
-        cmd += ["-c:a", "pcm_s16le", str(out)]
+        cmd += ["-c:a", "pcm_s16le", *WAV_PLAIN_HEADER_ARGS, str(out)]
     else:
         filter_inputs = "".join(f"[{i}:a]" for i in range(len(inputs)))
         cmd += [
@@ -163,6 +164,7 @@ def make_original_track(job: Job, job_dir: Path, stems_dir: Path) -> Path | None
             f"{filter_inputs}amix=inputs={len(inputs)}:normalize=0",
             "-c:a",
             "pcm_s16le",
+            *WAV_PLAIN_HEADER_ARGS,
             str(out),
         ]
     return out if _run_ffmpeg(job, cmd) else None
@@ -204,6 +206,7 @@ def make_selected_mix(job: Job, stems_dir: Path, found: list[str]) -> Path | Non
         f"{filter_inputs}amix=inputs={len(inputs)}:normalize=0",
         "-c:a",
         "pcm_s16le",
+        *WAV_PLAIN_HEADER_ARGS,
         str(out),
     ]
     return out if _run_ffmpeg(job, cmd) else None

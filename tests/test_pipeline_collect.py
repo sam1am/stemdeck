@@ -9,12 +9,16 @@ import numpy as np
 import pytest
 import soundfile as sf
 
+from app.core.models import Job
 from app.pipeline.collect import (
     _PEAK_POINTS,
     compute_stem_peaks,
+    make_original_track,
+    make_selected_mix,
     merge_stem_peaks,
     presence_for_split,
 )
+from tests.ffmpeg_probe import skip_without_ffmpeg
 
 
 def _write_wav(path: Path, samples: list[float], sample_rate: int = 44100) -> None:
@@ -218,3 +222,24 @@ def test_split_presence_is_empty_without_a_reference(tmp_path):
     assert presence_for_split(rms_values, None) == {}
     assert presence_for_split(rms_values, {"drums": 90}) == {}
     assert presence_for_split(rms_values, {"vocals": 0}) == {}
+
+
+@pytest.mark.parametrize("make", [make_selected_mix, make_original_track])
+def test_ffmpeg_wavs_have_canonical_header(tmp_path, make):
+    """mix.wav and original.wav are served as-is in stem downloads and zips, so
+    they must not carry ffmpeg's LIST/INFO chunk between fmt and data -- strict
+    hardware players only parse the 44-byte header."""
+    skip_without_ffmpeg()
+    from app.core.config import STEM_NAMES
+
+    for name in STEM_NAMES:
+        _write_wav(tmp_path / f"{name}.wav", [0.1, -0.1] * 100)
+    job = Job(id="abcdef000099")
+    job.selected_stems = list(STEM_NAMES[:2])
+    if make is make_selected_mix:
+        out = make(job, tmp_path, list(STEM_NAMES))
+    else:
+        out = make(job, tmp_path, tmp_path)
+    assert out is not None
+    content = out.read_bytes()
+    assert content[36:40] == b"data", f"expected data at byte 36, found {content[36:40]!r}"

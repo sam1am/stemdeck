@@ -25,6 +25,7 @@ from app.core.config import (
     JOBS_DIR,
     STEM_NAMES,
     TIMEOUT_FFMPEG,
+    WAV_PLAIN_HEADER_ARGS,
     ffmpeg_executable,
 )
 from app.core.registry import get as registry_get
@@ -60,7 +61,7 @@ _VOCAL_DECOMPOSITION_NAMES = frozenset(EXTRA_STEM_NAMES)
 # stems zip. WAV is lossless PCM, FLAC is lossless compressed, MP3 is VBR ~190 kbps,
 # OGG is Vorbis VBR q6 (~192 kbps) — the quality tier matching the MP3 setting.
 _ENCODE_ARGS = {
-    "wav": ["-c:a", "pcm_s16le"],
+    "wav": ["-c:a", "pcm_s16le", *WAV_PLAIN_HEADER_ARGS],
     "mp3": ["-q:a", "2"],
     "flac": ["-c:a", "flac"],
     "ogg": ["-c:a", "libvorbis", "-q:a", "6"],
@@ -109,7 +110,10 @@ _MIXDOWN_CACHE_MAX_BYTES = 500 * 1024 * 1024  # 500 MB
 # is still reachable, and _prune_mixdown_cache evicts by age rather than
 # validity -- so without this a user who exported before upgrading would be
 # handed the same broken file back for the same parameters indefinitely.
-_RENDER_CACHE_VERSION = "2"
+#
+# "3": WAV renders before this carried a LIST/INFO chunk ahead of the data
+# chunk, which strict hardware players reject (WAV_PLAIN_HEADER_ARGS).
+_RENDER_CACHE_VERSION = "3"
 
 
 def _mixdown_cache_key(
@@ -999,6 +1003,7 @@ async def get_stem(
         str(end - start),
         "-c:a",
         "pcm_s16le",
+        *WAV_PLAIN_HEADER_ARGS,
         "-f",
         "wav",
     ]
